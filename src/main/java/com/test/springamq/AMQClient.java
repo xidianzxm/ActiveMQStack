@@ -33,13 +33,17 @@ public  class AMQClient<T> {
     //目的地队列的明证，我们要向这个队列发送消息
     //@Resource(name = "destinationQueue")
     @Autowired
+    //@Qualifier("spring-queue")
     private ActiveMQQueue destinationQueue;
 
 
     //目的地队列的明证，我们要向这个队列发送消息
     //@Resource(name = "destinationQueue")
     @Autowired
+    //@Qualifier("spring-topic")
     private ActiveMQTopic destinationTopic;
+
+
 
 
     private DefaultMessageListenerContainer defaultMessageListenerContainer;
@@ -151,13 +155,13 @@ public  class AMQClient<T> {
     public void sendTopicMsg(String topicName,T t) {
 
         //重新设置Topic的名字
-        //destinationTopic.setPhysicalName("TOPIC.ALL");
-        ActiveMQTopic topic =  (ActiveMQTopic)DanyConfig.getApplicationContext().getBean("TOPIC.ALL");
+        destinationTopic.setPhysicalName(topicName);
+        //ActiveMQTopic topic =  (ActiveMQTopic)DanyConfig.getApplicationContext().getBean(topicName);
 
         final String msg = JSON.toJSONString(t);
         try {
             //logger.info("将要向队列{}发送的消息msg:{}", destination, msg);
-            jmsTemplate.send(topic, new MessageCreator() {
+            jmsTemplate.send(destinationTopic, new MessageCreator() {
                 @Override
                 public Message createMessage(Session session) throws JMSException {
                     return session.createTextMessage(msg);

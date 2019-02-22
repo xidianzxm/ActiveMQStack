@@ -108,18 +108,16 @@
     </bean>
 
 
-
-
-    <!--<bean id="jmsContainer"-->
-          <!--class="org.springframework.jms.listener.DefaultMessageListenerContainer">-->
-        <!--&lt;!&ndash;<property name="connectionFactory" ref="cachingConnectionFactory"/>&ndash;&gt;-->
-        <!--<property name="connectionFactory" ref="jmsFactory"/>-->
-        <!--<property name="destination" ref="destinationTopic"/>-->
-        <!--<property name="messageListener" ref="messageListener"/>-->
-    <!--</bean>-->
-    <!--&lt;!&ndash;消息监听器&ndash;&gt;-->
-    <!--<bean id="messageListener" class="com.test.springamq.MyTopicMessageListener">-->
-    <!--</bean>-->
+    <bean id="jmsContainer"
+          class="org.springframework.jms.listener.DefaultMessageListenerContainer">
+        <!--<property name="connectionFactory" ref="cachingConnectionFactory"/>-->
+        <property name="connectionFactory" ref="jmsFactory"/>
+        <property name="destination" ref="destinationTopic"/>
+        <property name="messageListener" ref="messageListener"/>
+    </bean>
+    <!--消息监听器-->
+    <bean id="messageListener" class="com.test.springamq.MyTopicMessageListener">
+    </bean>
 
 
     <!--<bean id="jmsContainer1"-->

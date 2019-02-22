@@ -10,12 +10,13 @@ public class Test {
         user.setAge(1);
         AMQClient amqClient = AMQClient.getClient();
 
-        amqClient.setListener(MyTopicMessageListener.class);
+//        amqClient.setListener(MyTopicMessageListener.class);
 //        amqClient.setListener(new MyTopicMessageListener());
 //        amqClient.getDefaultMessageListenerContainer().start();
 
 //        amqClient.sendQueueMsg("spring-queue",user);
 
-        amqClient.sendTopicMsg("spring-topic",user);
+        amqClient.sendTopicMsg("test222",user);
+
     }
 }
