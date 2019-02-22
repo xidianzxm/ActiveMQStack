@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-4.3.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-4.3.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx-4.3.xsd">
+
+
+    <!--
+    1) Spring消息发送的核心架构是JmsTemplate，隔离了像打开、关闭Session和Producer的繁琐操作，因此应用开发人员仅仅需要关注实际的业务逻辑。
+       但是JmsTemplate损害了ActiveMQ的PooledConnectionFactory对session和消息producer的缓存机制而带来的性能提升
+    2) 新的Spring里面，可以设置org.springframework.jms.connection.CachingConnectionFactory的sessionCacheSize，或者干脆使用ActiveMQ的PooledConnectionFactory
+    3) 不建议使用JmsTemplate的receive()调用，因为在JmsTemplate上的所有调用都是同步的，这意味着调用线程需要被阻塞，直到方法返回，这对性能影响很大
+       使用DefaultMessageListenerContainer，它允许异步接收消息并缓存session和消息consumer，而且还可以根据消息数量动态的增加或缩减监听器的数量
+    -->
+    <context:component-scan base-package="com.test.springamq"/>
+
+
+    <!-- 注册一个BeanFactoryPostProcessor -->
+    <!--
+    Spring IoC容器允许BeanFactoryPostProcessor在容器 "实例化任何bean之前" 读取bean的定义(配置元数据)，并可以修改它。
+    同时可以定义多个BeanFactoryPostProcessor，通过设置'order'属性来确定各个BeanFactoryPostProcessor执行顺序。
+    注册一个BeanFactoryPostProcessor实例需要定义一个Java类来实现BeanFactoryPostProcessor接口，并重写该接口的postProcessorBeanFactory方法。
+    通过beanFactory可以获取bean的定义信息，并可以修改bean的定义信息。
+    -->
+    <bean id="factoryPostProcessor" class="com.test.springamq.AMQBrokerFactoryPostProcessor"><!--implements BeanFactoryPostProcessor-->
+        <!--<constructor-arg index="0" value="defaultBrokerUrl"/>-->
+    </bean>
+
+
+
+    <bean id="amqBrokerBean" class="com.test.springamq.noconfig.AMQBrokerBean">
+        <property name="brokerurl" value="defaultBrokerUrl"></property>
+    </bean>
+
+
+    <bean id="activeMQConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+        <property name="brokerURL">
+            <value>tcp://127.0.0.1:61616</value>
+        </property>
+        <!--<property name="userName">-->
+        <!--<value></value>-->
+        <!--</property>-->
+        <!--<property name="password">-->
+        <!--<value></value>-->
+        <!--</property>-->
+    </bean>
+    <bean id="jmsFactory" class="org.apache.activemq.pool.PooledConnectionFactory" destroy-method="stop">
+        <!--
+        maxmunActive：session的最大活跃值，该参数会通过ConnectionPool的createSession方法如入到Session工程类中（apache-common-pool的GenericObjectPoolFactory）；
+        maxConnections:Map的value，LinkedList的大小，即ConnectionPool数量；
+        idleTimeout：线程超时时间，最后使用时间+idleTimeout<当前时间，连接关闭；
+        expiryTimeout：回收时间，连接创建时间+expiryTimeout<当前时间，连接关闭；
+        -->
+
+        <property name="maxConnections" value="100"></property>
+        <!--<property name="idleTimeout" value="1"></property>-->
+
+        <!--后台对象清理时，休眠时间超过了3000毫秒的对象为过期-->
+        <property name="timeBetweenExpirationCheckMillis" value="3000"></property>
+
+        <!--<property name="expiryTimeout" value="1"></property>-->
+
+        <property name="connectionFactory" ref="activeMQConnectionFactory">
+
+        </property>
+    </bean>
+
+    <!--使用缓存可以提升效率-->
+    <bean id="cachingConnectionFactory" class="org.springframework.jms.connection.CachingConnectionFactory">
+        <property name="targetConnectionFactory" ref="jmsFactory"/>
+        <property name="sessionCacheSize" value="1"/>
+    </bean>
+
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+        <!--使用cachingConnectionFactory，连接不会断开 -->
+        <!--<property name="connectionFactory" ref="cachingConnectionFactory"/>-->
+        <property name="connectionFactory" ref="jmsFactory"/>
+
+        <!--public void setDeliveryMode(int deliveryMode) 设置是否持久化要发送的消息：1-非持久化；2-持久化-->
+        <!--<property name="deliveryMode" value="1"></property>-->
+
+        <!--<property name="defaultDestination" ref="destinationQueue"></property>-->
+
+        <property name="messageConverter">
+            <bean class="org.springframework.jms.support.converter.SimpleMessageConverter"/>
+        </property>
+    </bean>
+
+    <!--测试Queue,队列的名字是spring-queue-->
+    <bean id="destinationQueue" class="org.apache.activemq.command.ActiveMQQueue">
+        <!--<constructor-arg index="0" value="spring-queue"/>-->
+        <constructor-arg name="name" value="spring-queue"/>
+    </bean>
+
+    <!--测试Topic-->
+    <bean id="destinationTopic" class="org.apache.activemq.command.ActiveMQTopic">
+        <constructor-arg index="0" value="spring-topic"/>
+    </bean>
+
+
+
+
+    <!--<bean id="jmsContainer"-->
+          <!--class="org.springframework.jms.listener.DefaultMessageListenerContainer">-->
+        <!--&lt;!&ndash;<property name="connectionFactory" ref="cachingConnectionFactory"/>&ndash;&gt;-->
+        <!--<property name="connectionFactory" ref="jmsFactory"/>-->
+        <!--<property name="destination" ref="destinationTopic"/>-->
+        <!--<property name="messageListener" ref="messageListener"/>-->
+    <!--</bean>-->
+    <!--&lt;!&ndash;消息监听器&ndash;&gt;-->
+    <!--<bean id="messageListener" class="com.test.springamq.MyTopicMessageListener">-->
+    <!--</bean>-->
+
+
+    <!--<bean id="jmsContainer1"-->
+          <!--class="org.springframework.jms.listener.DefaultMessageListenerContainer">-->
+        <!--&lt;!&ndash;<property name="connectionFactory" ref="cachingConnectionFactory"/>&ndash;&gt;-->
+        <!--<property name="connectionFactory" ref="jmsFactory"/>-->
+        <!--<property name="destination" ref="destinationTopic"/>-->
+        <!--<property name="messageListener" ref="messageListener1"/>-->
+    <!--</bean>-->
+    <!--&lt;!&ndash;消息监听器&ndash;&gt;-->
+    <!--<bean id="messageListener1" class="com.test.springamq.MyTopic2MessageListener">-->
+    <!--</bean>-->
+
+    <!--<bean id="jmsQueueContainer"-->
+          <!--class="org.springframework.jms.listener.DefaultMessageListenerContainer">-->
+        <!--&lt;!&ndash;<property name="connectionFactory" ref="cachingConnectionFactory"/>&ndash;&gt;-->
+        <!--<property name="connectionFactory" ref="jmsFactory"/>-->
+        <!--<property name="destination" ref="destinationQueue"/>-->
+        <!--<property name="messageListener" ref="messageListener"/>-->
+    <!--</bean>-->
+    <!--&lt;!&ndash;消息监听器&ndash;&gt;-->
+    <!--<bean id="queue_messageListener" class="com.test.springamq.MyQueueMessageListener">-->
+    <!--</bean>-->
+
+
+
+</beans>
